@@ -40,6 +40,9 @@
   .modal-content input, .modal-content textarea{width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:#0b0e14;color:var(--text)}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+  .pdf-indicator{display:none;align-items:center;gap:6px;padding:4px 10px;background:#1a3a2a;border:1px solid #2d5a3d;border-radius:8px;font-size:12px;color:#6fcf97}
+  .pdf-indicator.visible{display:flex}
+  .file-input{display:none}
   </style>
 </head>
 <body>
@@ -67,6 +70,9 @@
       <div class="tools-row">
         <button id="open-email" class="btn btn-outline" type="button">✉️ Enviar correo</button>
         <button id="open-calendar" class="btn btn-outline" type="button">📅 Crear evento</button>
+        <label for="pdf-input" class="btn btn-outline" style="cursor:pointer">📄 Subir PDF</label>
+        <input type="file" id="pdf-input" class="file-input" accept=".pdf" />
+        <span id="pdf-status" class="pdf-indicator">📄 <span id="pdf-name"></span></span>
         <span id="status" class="status" aria-live="polite"></span>
       </div>
     </section>
@@ -125,6 +131,8 @@
   const INVOKE_URL = `${API_BASE}/agent/invoke`;
   const GMAIL_URL  = `${API_BASE}/gmail/send`;
   const CAL_URL    = `${API_BASE}/calendar/event`;
+  const PDF_UPLOAD_URL = `${API_BASE}/pdf/upload`;
+  const PDF_STATUS_URL = `${API_BASE}/pdf/status`;
   const AUTH_GOOGLE_URL = `${API_BASE}/auth/google`;
 
   // ===== Estado de UI =====
@@ -150,6 +158,9 @@
     calStart: document.getElementById("cal-start"),
     calEnd: document.getElementById("cal-end"),
     closeCalendar: document.getElementById("close-calendar"),
+    pdfInput: document.getElementById("pdf-input"),
+    pdfStatus: document.getElementById("pdf-status"),
+    pdfName: document.getElementById("pdf-name"),
   };
 
   const sessionId = getOrCreateSessionId();
@@ -167,6 +178,10 @@
   els.openCalendar.addEventListener("click", () => { prefillCalendarTimes(); els.calModal.showModal(); });
   els.closeCalendar.addEventListener("click", () => els.calModal.close());
   els.calForm.addEventListener("submit", createEvent);
+  els.pdfInput.addEventListener("change", uploadPdf);
+
+  // Verificar si hay PDF cargado al iniciar
+  checkPdfStatus();
 
   // ===== Funciones =====
   function getOrCreateSessionId() {
@@ -303,6 +318,45 @@
     const hh = String(Math.floor(Math.abs(tz)/60)).padStart(2,"0");
     const mm = String(Math.abs(tz)%60).padStart(2,"0");
     return `${d.toISOString().slice(0,19)}${sign}${hh}:${mm}`;
+  }
+
+  // ===== PDF Functions =====
+  async function uploadPdf() {
+    const file = els.pdfInput.files[0];
+    if (!file) return;
+
+    setStatus("Subiendo PDF...");
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch(PDF_UPLOAD_URL, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+      
+      els.pdfName.textContent = file.name;
+      els.pdfStatus.classList.add("visible");
+      appendMessage("ai", `📄 PDF "${file.name}" cargado (${data.pages} páginas). Ahora puedes preguntarme sobre su contenido.`);
+    } catch (err) {
+      appendMessage("ai", "⚠️ Error al subir PDF: " + err.message);
+    } finally {
+      setStatus("");
+      els.pdfInput.value = ""; // Reset input
+    }
+  }
+
+  async function checkPdfStatus() {
+    try {
+      const res = await fetch(PDF_STATUS_URL);
+      const data = await res.json();
+      if (data.loaded) {
+        els.pdfName.textContent = data.filename;
+        els.pdfStatus.classList.add("visible");
+      }
+    } catch (e) { /* ignore */ }
   }
   </script>
 </body>
