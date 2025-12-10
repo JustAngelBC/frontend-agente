@@ -3,90 +3,110 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ASISTENTE LangChain</title>
-  <style>
-    :root { color-scheme: light dark; }
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto;max-width:860px;margin:40px auto;padding:0 16px}
-    h1{margin-bottom:6px}
-    .sub{color:#666;margin-bottom:16px}
-    .card{border:1px solid #ddd;border-radius:12px;padding:16px;margin-top:16px}
-    textarea{width:100%;height:140px;padding:10px;border-radius:8px;border:1px solid #ccc}
-    button{padding:10px 16px;border-radius:8px;border:1px solid #333;background:#222;color:#fff;cursor:pointer}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    .msg{white-space:pre-wrap;line-height:1.5}
-    .row{display:flex;gap:12px;align-items:center;margin-top:8px}
-    .badge{background:#eef;border:1px solid #99f;padding:4px 8px;border-radius:6px;font-size:12px}
-    .small{font-size:12px;color:#666}
-    .footer{margin-top:24px;color:#666;font-size:12px}
-    input[type=text]{width:100%;padding:8px;border:1px solid #ccc;border-radius:8px}
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agente Gemini + LangChain</title>
+
+  <!-- Hoja de estilos -->
+  ./style.css
+
+  <!-- Metadatos básicos -->
+  <meta name="color-scheme" content="dark light" />
 </head>
 <body>
-  <h1>Agente Gemini + LangChain</h1>
-  <p class="sub">UI minimal para consultar tu agente desplegado en Dokploy.</p>
-
-  <!-- Ajusta aquí el endpoint de tu API (tu dominio del backend) -->
-  <div class="badge">Endpoint API:
-    <span id="endpoint">https://asistente.ponganos10.online/agent/invoke</span>
-  </div>
-
-  <div class="card">
-    <label for="input" class="small">Tu pregunta:</label>
-    <textarea id="input" placeholder="Escribe tu prompt..."></textarea>
-
-    <div class="row">
-      <button id="ask">Preguntar</button>
-      <span id="status" class="small"></span>
+  <!-- Topbar -->
+  <header class="topbar" role="banner">
+    <div class="brand">
+      <strong>Agente Gemini + LangChain</strong>
+      <span class="env" aria-label="Entorno UI">UI</span>
     </div>
-  </div>
+    <div class="actions">
+      <button id="btn-google" class="btn" type="button">Conectar con Google</button>
+      <button id="btn-reset" class="btn btn-secondary" type="button" title="Nueva conversación">Nuevo chat</button>
+    </div>
+  </header>
 
-  <div class="card">
-    <h3>Respuesta</h3>
-    <div id="output" class="msg"></div>
-  </div>
+  <!-- Contenido principal -->
+  <main class="container" role="main">
+    <!-- Chat -->
+    <section id="chat" class="chat" aria-label="Historial del chat">
+      <ul id="messages" class="messages" aria-live="polite" aria-relevant="additions"></ul>
+    </section>
 
-  <div class="footer small">
-    Hecho con HTML + JavaScript. Consume la API FastAPI (LangChain + Gemini) desplegada en Dokploy.
-  </div>
+    <!-- Composer -->
+    <section class="composer" aria-label="Escribir mensaje">
+      <div class="composer-row">
+        <input
+          id="input"
+          type="text"
+          placeholder="Escribe tu mensaje…"
+          autocomplete="off"
+          aria-label="Tu mensaje"
+        />
+        <button id="send" class="btn" type="button">Enviar</button>
+      </div>
 
-<script>
-const ENDPOINT = document.getElementById("endpoint").textContent;
-const askBtn = document.getElementById("ask");
-const inputEl = document.getElementById("input");
-const outEl = document.getElementById("output");
-const statusEl = document.getElementById("status");
+      <div class="tools-row">
+        <button id="open-email" class="btn btn-outline" type="button">✉️ Enviar correo</button>
+        <button id="open-calendar" class="btn btn-outline" type="button">📅 Crear evento</button>
+        <span id="status" class="status" aria-live="polite"></span>
+      </div>
+    </section>
+  </main>
 
-askBtn.addEventListener("click", async () => {
-  const input = inputEl.value.trim();
-  if (!input) return alert("Escribe una pregunta");
-  askBtn.disabled = true;
-  statusEl.textContent = "Consultando agente...";
-  outEl.textContent = "";
+  <!-- Modal: Email -->
+  <dialog id="email-modal" class="modal" aria-labelledby="email-title">
+    <form class="modal-content" id="email-form" method="dialog">
+      <h3 id="email-title">Enviar correo</h3>
 
-  try {
-    const res = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input }),
-    });
+      <label for="email-to">Para</label>
+      <input id="email-to" name="to" type="email" required placeholder="usuario@dominio.com" />
 
-    // Si tu backend usa HTTPS y CORS, asegúrate de permitir este origen (ver Paso 4)
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`HTTP ${res.status}: ${text}`);
-    }
+      <label for="email-subject">Asunto</label>
+      <input id="email-subject" name="subject" type="text" required />
 
-    const data = await res.json();
-    const text = data.output ?? "[Sin contenido]";
-    outEl.innerHTML = text.replace(/\n/g, "<br/>");
-  } catch (e) {
-    outEl.textContent = "Error: " + (e?.message || e);
-  } finally {
-    statusEl.textContent = "";
-    askBtn.disabled = false;
-  }
-});
-</script>
+      <label for="email-body">Mensaje</label>
+      <textarea id="email-body" name="body" rows="6" required></textarea>
+
+      <div class="modal-actions">
+        <!-- type="submit" para que el form lance el evento submit -->
+        <button class="btn" type="submit">Enviar</button>
+        <button class="btn btn-secondary" type="button" id="close-email">Cancelar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Modal: Calendar -->
+  <dialog id="calendar-modal" class="modal" aria-labelledby="calendar-title">
+    <form class="modal-content" id="calendar-form" method="dialog">
+      <h3 id="calendar-title">Crear evento</h3>
+
+      <label for="cal-summary">Título</label>
+      <input id="cal-summary" name="summary" type="text" required placeholder="Reunión / Evento" />
+
+      <label for="cal-description">Descripción</label>
+      <textarea id="cal-description" name="description" rows="4" placeholder="Detalle del evento"></textarea>
+
+      <div class="grid">
+        <label for="cal-start">Inicio (fecha y hora)</label>
+        <input id="cal-start" name="start" type="datetime-local" required />
+
+        <label for="cal-end">Fin (fecha y hora)</label>
+        <input id="cal-end" name="end" type="datetime-local" required />
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" type="submit">Crear</button>
+        <button class="btn btn-secondary" type="button" id="close-calendar">Cancelar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Script principal -->
+  ./app.js</script>
+
+  <!-- Polyfill opcional para <dialog> (Safari/iOS antiguos)
+  <script src="https://unpkg.comill@0.5.6/dist/dialog-polyfill.js</script>
+  https://unpkg.com/dialog-polyfill@0.5.6/dist/dialog-polyfill.css
+  -->
 </body>
 </html>
